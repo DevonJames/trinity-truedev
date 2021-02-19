@@ -9,6 +9,8 @@ module.exports = {
   updateProfitEstimates: async( req, res ) => {
     try {
       let userData = await User.findById({ _id: req.body.user.id})
+
+      // console.log('userData:', userData)
       // ToDo Truedev change line below to address from profile from Profile.js
       let userKeys = {address: process.env.RAVEN_ADDRESS }
 
@@ -20,11 +22,14 @@ module.exports = {
 
       let estimates = await profitsEstimated(userKeys)
 
-      //console.log("These are the estimates", estimates);
+      // console.log('estimates:', estimates)
+
+      // console.log("These are the estimates", estimates);
     
       const profitEstimate = new ProfitEstimate({
         userId: req.body.user.id,
         time: Date.now().toString(),
+        rentalOrderIdReadable: estimates.LiveEstimatesFromMining.rentalOrderIdReadable,
         botStatusCode: estimates.botStatus.botStatusCode,
         RentalCompositeStatusCode: estimates.botStatus.RentalCompositeStatusCode,
         RewardsCompositeCode: estimates.botStatus.RewardsCompositeCode,
@@ -33,6 +38,7 @@ module.exports = {
         actualNetworkPercent: estimates.LiveEstimatesFromMining.actualNetworkPercent,
         rentalDuration: estimates.LiveEstimatesFromMining.rentalDuration,
         CostOfRentalInBtc: estimates.LiveEstimatesFromMining.CostOfRentalInBtc,
+        // rewardsBeforeRentalStart: estimates.LiveEstimatesFromMining.rewardsTotal, 
         rewardsTotal: estimates.LiveEstimatesFromMining.rewardsTotal,
         ProjectedProfitInUsd: estimates.BestArbitrageCurrentConditions.ProjectedProfitInUsd,
         ProjectedProfitMargin: estimates.BestArbitrageCurrentConditions.ProjectedProfitMargin,

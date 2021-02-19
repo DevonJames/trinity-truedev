@@ -1,6 +1,51 @@
 const https = require('https');
+// to do import this from rentalPredictions rather than doing it redundantly
+async function nicehashMins(token) {
+        return await new Promise((resolve, reject) => {
+            https
+            .get(
+                'https://api2.nicehash.com/main/api/v2/public/buy/info',
+                (response) => {
+                    let body = ''
+                    response.on('data', (chunk) => {
+                        body += chunk;
+                    });
+                    response.on('end', () => {
+                    let data = JSON.parse(body)
+                    if(!data) 
+                      console.log('Something wrong with the api or syntax');
+                
+                    // let NicehashMins = data;
+                    let algos = data.miningAlgorithms.length
+                    let algo;
+                    let loop = 0
+                    while (algo != 52) {
+                        algo = data.miningAlgorithms[loop].algo;
+                        loop += 1;
+                    }
+                    let NicehashMinsForRvn = data.miningAlgorithms[loop-1]
+                    loop = 0
+                    while (algo != 0) {
+                        algo = data.miningAlgorithms[loop].algo;
+                        loop += 1;
+                    }
+                    let NicehashMinsForFlo = data.miningAlgorithms[loop-1]
+                    let NicehashMins = (/RVN/.test(token)) ? (NicehashMinsForRvn) : (NicehashMinsForFlo)
+                    // console.log('NicehashMinsForRvn:', NicehashMinsForRvn, 'NicehashMinsForFlo:', NicehashMinsForFlo)
+                    resolve(NicehashMins);
+                });
+                })
+            .on("error", (error) => {
+                console.log("Error: " + error.message);
+                reject("Error: " + error.message);
+            })
+        })
+      }
 
 const Rent = async (token, percent, marketFactor) => {
+    let NicehashMins = await nicehashMins()
+    // let nicehashMinRentalCost = 0.002;
+    let nicehashMinRentalCost = NicehashMins.min_amount
     let Percent = percent / 100
     if (token === "FLO") {
 
@@ -48,7 +93,7 @@ const Rent = async (token, percent, marketFactor) => {
                     let hashrate = data.nodes[0].networkhashps;
                     let Networkhashrate = hashrate / marketFactor;
                     let Rent = Math.floor( Networkhashrate * (-Percent / (-1 + Percent)) *1e2 ) /1e2;
-                    let MinPercentFromMinHashrate = marketFactor * .01 / ((difficulty * Math.pow(2, 32) / 60) + (marketFactor * .01))
+                    let MinPercentFromMinHashrate = marketFactor * nicehashMinRentalCost / ((difficulty * Math.pow(2, 32) / 60) + (marketFactor * nicehashMinRentalCost))
                     resolve({ Rent, MinPercentFromMinHashrate, difficulty, Networkhashrate, hashrate })
                 })
             }).on("error", (error) => {
@@ -88,7 +133,7 @@ class AutoRentCalculatons {
     constructor(spartanbot) {
         this.SpartanBot = spartanbot
         this.providers = spartanbot.rental_providers
-        this.nicehashMinRentalCost = 0.005
+        this.nicehashMinRentalCost = 0.001
         this.BittrexMinWithdrawal = 0.0015
 
         this.MRR = {}

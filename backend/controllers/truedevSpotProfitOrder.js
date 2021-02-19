@@ -8,14 +8,26 @@ require('dotenv').config();
 const ProfitEstimate = require('../models/profitEstimates');
 const { keys } = require('lodash');
 //const SpotProfitOrder = require('../controllers/truedevSpotProfitOrder')
+const profitsEstimated = require('../profitEstimator')
+const RentalProvider = require('../helpers/rentalPrediction');
 
+const PriceEstimatesController = require('./priceEstimates')
 
+//to do, look these up
+let token = "RVN";
+let tokenAlgo = "KAWPOW";
+let minDuration;
+let tokensPerBlock = 5000;
+let blocksPerHour = 60;
 
 const createOrder = async(req, res) => {
   try {
     let orderId;
 
     let providerUser = await User.findById({ _id: req.body.userId})
+    // console.log(req.body)
+    // console.log('providerUser:', providerUser)
+
     let providerData = providerUser.providerData;
     let niceHashKeys;
 
@@ -34,23 +46,26 @@ const createOrder = async(req, res) => {
 
     console.log("Setting Body");
 
-    
-    const currentStatus = await ProfitEstimate.collection.findOne({}, {sort:{$natural:-1}})
+    let userKeys = {address: process.env.RAVEN_ADDRESS }
+    let profitsEstimate = await profitsEstimated(userKeys)
+     // console.log('profitsEstimate:', profitsEstimate)
 
-    console.log(currentStatus)
+    const currentStatus = await ProfitEstimate.collection.findOne({userId:req.body.userId}, {sort:{$natural:-1}})
+
+    // console.log('currentStatus:', currentStatus)
 
     // Fix this to listen to user input instead of marketFactor being hardcoded
     const body = {
       //STANDARD | FIXED
       type: req.body.type,
-      limit: currentStatus.HashrateToRent,
+      limit: profitsEstimate.BestArbitrageCurrentConditions.HashrateToRent,
       id: '',
-      price: currentStatus.RentalHashPrice,
+      price: profitsEstimate.BestArbitrageCurrentConditions.RentalHashPrice,
       marketFactor: 1000000000000,
-      displayMarketFactor: currentStatus.MarketFactorName,
-      amount: currentStatus.CostOfRentalInBtc,
+      displayMarketFactor: profitsEstimate.BestArbitrageCurrentConditions.MarketFactorName,
+      amount: profitsEstimate.BestArbitrageCurrentConditions.CostOfRentalInBtc,
       //amount: req.body.amount,
-      market: 'EU',
+      market: "EU",
       algorithm: "KAWPOW"
     }
     
@@ -79,7 +94,7 @@ const createOrder = async(req, res) => {
       }
     }
 
-    // console.log(body);
+    // console.log('body1:',body);
 
     console.log("Fetching active orders");
     let activeRental = (await requestActiveRental(orderId, NiceHashOrder)).alive;
@@ -89,13 +104,54 @@ const createOrder = async(req, res) => {
       console.log("Creating Order");
       console.table(body)
       orderId = (await NiceHashOrder.createOrder(body)).id
+      const rewardsBeforeRentalStart = profitsEstimate.LiveEstimatesFromMining.rewardsBeforeRentalStart
+      console.log('rewardsBeforeRentalStart1:', rewardsBeforeRentalStart)
+            // console.log('currentStatus1:', profitsEstimate.BestArbitrageCurrentConditions)
+      //to do check these to see if they're storing current values or not
+      let profitEstimate = new ProfitEstimate({
+        userId: body.userId,
+        time: Date.now().toString(),
+        rentalOrderIdReadable: currentStatus.rentalOrderIdReadable,
+        botStatusCode: profitsEstimate.botStatus.botStatusCode,
+        RentalCompositeStatusCode: currentStatus.RentalCompositeStatusCode,
+        RewardsCompositeCode: currentStatus.RewardsCompositeCode,
+        projectedProfitable: currentStatus.projectedProfitable,
+        projectedAboveUsersMinMargin: currentStatus.projectedAboveUsersMinMargin,
+        actualNetworkPercent: currentStatus.actualNetworkPercent,
+        rentalDuration: currentStatus.rentalDuration,
+        CostOfRentalInBtc: currentStatus.CostOfRentalInBtc,
+        rewardsBeforeRentalStart: currentStatus.rewardsTotal, 
+        rewardsTotal: currentStatus.rewardsTotal,
+        ProjectedProfitInUsd: currentStatus.ProjectedProfitInUsd,
+        ProjectedProfitMargin: currentStatus.ProjectedProfitMargin,
+        HashrateToRent: currentStatus.HashrateToRent,
+        MarketFactorName: currentStatus.MarketFactorName,
+        RentalDuration: currentStatus.RentalDuration,
+        RentalHashPrice: currentStatus.RentalHashPrice,
+        ProjectedTokenRewards: currentStatus.ProjectedTokenRewards,
+        CostOfRentalInBtc: currentStatus.CostOfRentalInBtc,
+        CostOfRentalInUsd: currentStatus.CostOfRentalInUsd,
+        ProjectedRevenueInBtc: currentStatus.ProjectedRevenueInBtc,
+        ProjectedRevenueInUsd: currentStatus.ProjectedRevenueInUsd,
+        NetworkPercentToRent: currentStatus.NetworkPercentToRent,
+        ExpectedPoolDominanceMultiplier: currentStatus.ExpectedPoolDominanceMultiplier
+      })
+      await profitEstimate.save();
+
+
+      // let profitEstimates = new ProfitEstimates({
+      //   RewardsBeforeRentalStart: rewardsBeforeRentalStart
+      // });
+      // await profitEstimates.save()
+
       console.log("Successfully created order");
-    } else if (!activeRental && statusCode==3) {
+      // console.log('rewardsBeforeRentalStart:', rewardsBeforeRentalStart)
+    } else if (!activeRental && statusCode==3) {  
       console.log("not renting. Status Code 3");
     } else if (activeRental && (statusCode==1 || statusCode==2)) {
       console.log("not renting. Status Code 1 or 2");
     } else if (activeRental && statusCode==3) {
-      console.log("not renting. Status Code 3");
+      console.log("Rental Already active. not renting. Status Code 3");
     } else {
       console.log("nothing works")
     }

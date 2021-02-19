@@ -100,12 +100,15 @@ const profitEstimateSchema = new Schema({
     type: Number,
     default: undefined
   },
-
   RewardsBeforeRentalStart: {
     type: Number,
     default: undefined
-
+  },
+  rentalOrderIdReadable: {
+    type: String,
+    default: undefined
   }
+
 })
 
 const ProfitEstimates = mongoose.model('profitEstimates', profitEstimateSchema);

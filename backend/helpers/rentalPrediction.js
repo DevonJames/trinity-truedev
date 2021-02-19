@@ -1,5 +1,6 @@
 const https = require('https')
 const SpartanBot = require('spartanbot').SpartanBot
+const ProfitEstimates = require('../models/profitEstimates');
 
 class RentalPrediction {
 
@@ -15,7 +16,7 @@ class RentalPrediction {
     this.provider = provider
   }
 
-  /*
+  
   UserInput() {
     let token = 'RVN';
     let tokenAlgo = 'KAWPOW';
@@ -25,7 +26,7 @@ class RentalPrediction {
 
     return { token, tokenAlgo, nextWorker, minDuration, minMargin};
   }
-  */
+  
 
 
   output(CurrentConditions, Rental, token, SpartanBotCompositeStatusCode, BestArbitrageCurrentConditions, LiveEstimatesFromMining, sleeptime, botStatusCode, workerAddress){
@@ -1411,6 +1412,7 @@ class RentalPrediction {
 
   async getcurrentconditions(token, tokenAlgo, minDuration, tokensPerBlock, blocksPerHour) {
     let _this = this
+    console.log('this:', this)
     
     try{
       let UsersBalance = await this.provider.provider.getBalance();
@@ -2422,10 +2424,15 @@ class RentalPrediction {
   };
 
   // this one estimates the value of mining while rentals are running 
-  async liveestimatesfrommining(CurrentRental, CurrentConditions, UserInput, tokensPerBlock, blocksPerHour, rewardsBeforeRentalStart) {
+  async liveestimatesfrommining(CurrentRental, CurrentConditions, UserInput, tokensPerBlock, blocksPerHour) {
     let BittrexWithdrawalFee = 0.00005;
     let BittrexMinWithdrawal = 0.00015;
     // let nicehashMinRentalCost = 0.005;
+    let rentalOrderIdReadable = CurrentRental.rentalOrderIdReadable
+  // const currentStatus = await ProfitEstimates.collection.findOne({}, {sort:{$natural:-1}})
+    const currentStatus = await ProfitEstimates.collection.findOne({ rentalOrderIdReadable:rentalOrderIdReadable}, {sort:{$natural:1}})
+  // console.log('currentStatus2:', currentStatus)
+    let rewardsBeforeRentalStart = (currentStatus != null) ? (currentStatus.rewardsTotal) : (CurrentConditions.rewardsTotal) 
     let nicehashMinRentalCost = CurrentConditions.nicehashMinRentalCost
     // console.log('nicehashMinRentalCost:', nicehashMinRentalCost)
     let actualNetworkPercent = CurrentRental.actualNetworkPercent
@@ -2439,7 +2446,7 @@ class RentalPrediction {
     let rentalDuration = CurrentRental.rentalDuration;
     let rewardsTotal = CurrentConditions.rewardsTotal;
     let minedTokens = Math.round((rewardsTotal - rewardsBeforeRentalStart)*1e3)/1e3; 
-    
+    // console.log(CurrentRental)
     let LiveEstimateQtyOfTokensToBeMined = (Math.round((minedTokens / rentalPercentComplete)*1e3)/1e3);
     
     let EstimatedQtyOfTokensToBeMined = Math.round(CurrentRental.actualNetworkPercent * tokensPerBlock * blocksPerHour * rentalDuration * CurrentConditions.poolDominanceMultiplier * 1e5) / 1e5;
@@ -2457,9 +2464,11 @@ class RentalPrediction {
     let SpartanMerchantArbitragePrcnt = (ValueOfEstTokensAtMarketPrice >= CostOfRentalInBtc) ? (Math.round( ((ValueOfEstTokensAtMarketPrice - CostOfRentalInBtc - BittrexWithdrawalFee) / CostOfRentalInBtc + BittrexWithdrawalFee) * 1e3 ) / 1e3) : ((ValueOfEstTokensAtMarketPrice/CostOfRentalInBtc)-1)
     
     return {
+      rentalOrderIdReadable,
       actualNetworkPercent, 
       rentalDuration, 
       CostOfRentalInBtc,
+      rewardsBeforeRentalStart,
       rewardsTotal,
       minedTokens,
       LiveEstimateQtyOfTokensToBeMined,
